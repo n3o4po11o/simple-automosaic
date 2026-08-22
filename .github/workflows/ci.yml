@@ -1,0 +1,55 @@
+# CI：push/PR 时跑 Rust 单测（workspace + FFI crate）与 Flutter 静态分析。
+# 版本 pin 在开发所用版本（Flutter 3.44.8 / rust 1.97.1）；不 pin 会随 stable
+# 漂移出问题（analyzer 退出非零、新 rustc 对生成代码更严——均前序实测教训）。
+# e2e（scripts/e2e_test.py）依赖 .venv/ultralytics/本地模型，不入 CI，
+# 由 release 工作流的全量构建间接覆盖。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  FLUTTER_VERSION: 3.44.8
+
+jobs:
+  rust:
+    name: Rust 单测（core + cli + ffi）
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: Swatinem/rust-cache@v2
+      - name: workspace 测试（models/ 缺失时文件依赖用例自动跳过）
+        run: cargo test --workspace
+      - name: FFI crate 测试（app/rust）
+        working-directory: app/rust
+        run: set -o pipefail; cargo test --lib 2>&1 | tee /tmp/ffi.log
+      # 失败摘要打成 annotation：免认证（公开 annotations API）也能读到错误
+      - name: FFI 失败摘要上报
+        if: failure()
+        run: |
+          echo "::error::FFI 测试日志尾部: $(tail -40 /tmp/ffi.log | tr '\n' '|' | cut -c1-2000)"
+
+  dart:
+    name: Flutter 静态分析
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: 依赖
+        working-directory: app
+        run: flutter pub get
+      - name: 静态分析
+        working-directory: app
+        run: flutter analyze --no-pub 2>&1 | tee /tmp/analyze.log
+      - name: analyze 失败摘要上报
+        if: failure()
+        run: |
+          echo "::error::analyze 日志尾部: $(tail -40 /tmp/analyze.log | tr '\n' '|' | cut -c1-2000)"

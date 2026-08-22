@@ -1,0 +1,15 @@
+[package]
+name = "automosaic-cli"
+description = "AutoMosaic Studio CLI（调试与无头场景，复用 automosaic-core 全部管线）"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "automosaic-cli"
+path = "src/main.rs"
+
+[dependencies]
+automosaic-core = { path = "../automosaic-core" }
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true

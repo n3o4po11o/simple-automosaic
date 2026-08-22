@@ -1,0 +1,216 @@
+{
+  "models": [
+    {
+      "file": "face_detection_yunet_2023mar.onnx",
+      "batch_file": null,
+      "imgsz": 640,
+      "sha256": "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
+      "sha256_batch": null,
+      "size_mb": 0.2,
+      "url": "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet",
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_mirror": null
+    },
+    {
+      "file": "grounding-dino-tiny.onnx",
+      "batch_file": null,
+      "imgsz": 800,
+      "sha256": "04c18d2db35569f11c47732f2e05ed3a71559a8903823fc581e90b0e3168c9ff",
+      "sha256_batch": null,
+      "size_mb": 343.7,
+      "url": null,
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_url": "https://huggingface.co/onnx-community/grounding-dino-tiny-ONNX/resolve/main/onnx/model_fp16.onnx",
+      "direct_mirror": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master"
+    },
+    {
+      "file": "osnet-x025-msmt17.onnx",
+      "batch_file": null,
+      "imgsz": 256,
+      "sha256": "e78604f4ccda49b8f41cd0f8f7303800ce75d2361895ebb0729513c1bf53d277",
+      "sha256_batch": null,
+      "size_mb": 0.9,
+      "url": null,
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_url": "https://huggingface.co/anriha/osnet_x0_25_msmt17/resolve/main/osnet_x0_25_msmt17.onnx",
+      "direct_mirror": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master"
+    },
+    {
+      "file": "retinaface-r34.onnx",
+      "batch_file": null,
+      "imgsz": 640,
+      "sha256": "bd0263dc2a465d32859555cb1741f2d98991eb0053696e8ee33fec583d30e630",
+      "sha256_batch": null,
+      "size_mb": 84.9,
+      "url": null,
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_url": "https://github.com/yakhyo/retinaface-pytorch/releases/download/v0.0.1/retinaface_r34.onnx",
+      "direct_mirror": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master"
+    },
+    {
+      "file": "sam2.1-large-decoder.onnx",
+      "batch_file": null,
+      "imgsz": 1024,
+      "sha256": "014ac31e9037238ee027d6399d932dafe80c15ae711aee564976b94383b4ffa1",
+      "sha256_batch": null,
+      "size_mb": 15.8,
+      "url": "https://github.com/n3o4po11o/simple-automosaic/releases/download/models",
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_mirror": null
+    },
+    {
+      "file": "sam2.1-large-encoder.onnx",
+      "batch_file": null,
+      "imgsz": 1024,
+      "sha256": "f18538735868c076b715d5abbdf1a9d5fb4b0939c00be9db42d6b3808cdd3251",
+      "sha256_batch": null,
+      "size_mb": 813.0,
+      "url": "https://github.com/n3o4po11o/simple-automosaic/releases/download/models",
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_mirror": null
+    },
+    {
+      "file": "sam2.1-tiny-decoder.onnx",
+      "batch_file": null,
+      "imgsz": 1024,
+      "sha256": "c40f5aa7d37b681cd500481a85d44839fd81c93dce1e86271a2c866470d22105",
+      "sha256_batch": null,
+      "size_mb": 15.7,
+      "url": "https://github.com/n3o4po11o/simple-automosaic/releases/download/models",
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_mirror": null
+    },
+    {
+      "file": "sam2.1-tiny-encoder.onnx",
+      "batch_file": null,
+      "imgsz": 1024,
+      "sha256": "667384d1e686de6828b841ac8a24db0fafa2b3452494225f82eeedac56141230",
+      "sha256_batch": null,
+      "size_mb": 104.3,
+      "url": "https://github.com/n3o4po11o/simple-automosaic/releases/download/models",
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_mirror": null
+    },
+    {
+      "file": "yolo11n-face-pose.onnx",
+      "batch_file": "yolo11n-face-pose-b4.onnx",
+      "imgsz": 640,
+      "sha256": "6591b05e4da42999c6ba23667cc87ea49f60427c64627a2e97b661a5bef5f927",
+      "sha256_batch": "0054b34b0272c59661f921b2ba77b79f346b21dd1b0de810af7c0199924fd6c3",
+      "size_mb": 10.5,
+      "url": "https://github.com/n3o4po11o/simple-automosaic/releases/download/models",
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_mirror": null
+    },
+    {
+      "file": "yolo11n-seg.onnx",
+      "batch_file": "yolo11n-seg-b4.onnx",
+      "imgsz": 640,
+      "sha256": "4c8ea1a611ae177d3ce5909800a21265b825cdf4a52d3d8670b48d41047d18fa",
+      "sha256_batch": "a3151e3cfa9abe25646377b7854197e8a8dbaef5c51bb5400ec45d8f2ffdda5d",
+      "size_mb": 11.2,
+      "url": "https://github.com/n3o4po11o/simple-automosaic/releases/download/models",
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_mirror": null
+    },
+    {
+      "file": "yolo11s-face-pose.onnx",
+      "batch_file": "yolo11s-face-pose-b4.onnx",
+      "imgsz": 640,
+      "sha256": "f9cc4cd421437bc3448c86099870e1b3a5a8ffda335d98983d2fd42209d81b24",
+      "sha256_batch": "af2ba425d56f0c8137b1ee23d818aef72bd9b4d1aaa48d31431cf72e2c2ffd5f",
+      "size_mb": 37.4,
+      "url": "https://github.com/n3o4po11o/simple-automosaic/releases/download/models",
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_mirror": null
+    },
+    {
+      "file": "yolo26l-seg.onnx",
+      "batch_file": "yolo26l-seg-b4.onnx",
+      "imgsz": 1280,
+      "sha256": "097b58d4fc26e7440576cd1f46deaf029ab4095dcd6f26177d1ec48684da6ba8",
+      "sha256_batch": "be8146cf072119776f580bbf84b08137a31ffc1212da6c4e8b961c2a98a2d5e0",
+      "size_mb": 107.5,
+      "url": "https://github.com/n3o4po11o/simple-automosaic/releases/download/models",
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_mirror": null
+    },
+    {
+      "file": "yolo26m-seg.onnx",
+      "batch_file": "yolo26m-seg-b4.onnx",
+      "imgsz": 960,
+      "sha256": "a12fc75537257862c530399afb91b7bf6d80616c97ef196e7a3862382a141443",
+      "sha256_batch": "06cb7a67a0bdf982aac45da734198b1201c2e3d7452d60ad4a397bd9a16abc08",
+      "size_mb": 90.4,
+      "url": "https://github.com/n3o4po11o/simple-automosaic/releases/download/models",
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_mirror": null
+    },
+    {
+      "file": "yolo26n-seg.onnx",
+      "batch_file": "yolo26n-seg-b4.onnx",
+      "imgsz": 640,
+      "sha256": "c7c639fc1ea5b4d96d9651ef6b87dc4edefb62dab5e4b6c23531ce349cd254e9",
+      "sha256_batch": "f1f44190b44724c00a4a6be5cbad28e4ec167e9ac598c137a12a4cc84dae08a1",
+      "size_mb": 10.7,
+      "url": "https://github.com/n3o4po11o/simple-automosaic/releases/download/models",
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_mirror": null
+    },
+    {
+      "file": "yolo26n.onnx",
+      "batch_file": "yolo26n-b4.onnx",
+      "imgsz": 640,
+      "sha256": "db49f226252bfe2f721b14a839a95638ec85dfca0a0ee8ccc5e63d319545a4a7",
+      "sha256_batch": "08a3bb275efaca7c183c78de05def956b9aae0076c7dae4ba3a1075d6ef24d7b",
+      "size_mb": 9.5,
+      "url": "https://github.com/n3o4po11o/simple-automosaic/releases/download/models",
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_mirror": null
+    },
+    {
+      "file": "yolo26s-seg.onnx",
+      "batch_file": "yolo26s-seg-b4.onnx",
+      "imgsz": 960,
+      "sha256": "a826701e2c42cf93e5a1609d1165aad0edf4ece940b38836e532b34bc451cc27",
+      "sha256_batch": "fd2488fe01c9fa19aa8a7247a7f9c8a302456fa50c879ce2fc91595fd3d995e9",
+      "size_mb": 40.2,
+      "url": "https://github.com/n3o4po11o/simple-automosaic/releases/download/models",
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_mirror": null
+    },
+    {
+      "file": "yolo26x-seg-1536.onnx",
+      "batch_file": null,
+      "imgsz": 1536,
+      "sha256": "e55b08cc80c1b147a98d28519f5a3a06206f42e167af41f185755921c72e62ff",
+      "sha256_batch": null,
+      "size_mb": 240.6,
+      "url": "https://github.com/n3o4po11o/simple-automosaic/releases/download/models",
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_mirror": null
+    },
+    {
+      "file": "yolo26x-seg.onnx",
+      "batch_file": "yolo26x-seg-b4.onnx",
+      "imgsz": 1280,
+      "sha256": "a9155d2e6230874e049a5b199c2df4c09686bc123b34793c3dee1b65e83b6c3d",
+      "sha256_batch": "a6f0bb14022e99f1dcc0ae5cad35fb3e15e668c16649506ab278e3ab6ced9f39",
+      "size_mb": 240.5,
+      "url": "https://github.com/n3o4po11o/simple-automosaic/releases/download/models",
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_mirror": null
+    },
+    {
+      "file": "yolov8n-face.onnx",
+      "batch_file": "yolov8n-face-b4.onnx",
+      "imgsz": 640,
+      "sha256": "6511c66c3220ab4d89d9ac85222504f33dff58d86538c8e3e0b69b1bbc83b42d",
+      "sha256_batch": "a052f272b79f25625435861a1bafa485d676d2d39c7c821fae12e74c31158514",
+      "size_mb": 12.1,
+      "url": "https://github.com/n3o4po11o/simple-automosaic/releases/download/models",
+      "mirror_url": "https://www.modelscope.cn/models/n3o4po11o/simple-automosaic-models/resolve/master",
+      "direct_mirror": null
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+# 模型分发源自動化（DESIGN §8）：
+#   从公开源拉取 .pt（ModelScope 主源）→ 导出 ONNX（b1+b4）→ 生成 manifest（主源地址
+#   自动从本仓库 remote 推导）→ 发布到 GitHub Releases tag=models → 将 manifest.json
+#   提交回仓库（保证后续打包内嵌 manifest 与 release 文件一致）。
+#   .pt→ONNX 转换需要 Python+PyTorch+ultralytics，无法在桌面应用内执行，故由 CI 承担。
+#
+# 产物（应用内下载已移除，2026-08-22；本 release 服务手动下载）：
+#   - 逐文件 *.onnx + manifest.json（按需补拉单个模型）
+#   - models-standard.tar.zst / models-standard.zip（四档全模型一键包，
+#     解压到用户数据目录即可用——位置见 README「手动下载模型」）
+#
+# 手动触发：Actions → publish-models → Run workflow
+name: publish-models
+
+on:
+  workflow_dispatch:
+  # 免认证触发：推 models-* 标签即跑（gh 不在手边时用）
+  push:
+    tags: ['models-*']
+
+permissions:
+  contents: write
+
+jobs:
+  export-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 版本与本地 .venv 对齐（ultralytics 8.4.79 / torch 2.12.1 / onnx 1.22.0 /
+      # onnxslim 0.1.96）。注意：ONNX 导出非字节级确定（同机重导字节亦不同），
+      # 一致性由 manifest 回写保证——manifest 记录的 sha 即本次发布文件的 sha。
+      - name: 安装导出环境
+        run: pip install ultralytics==8.4.79 torch==2.12.1 onnx==1.22.0 onnxslim==0.1.96 onnxruntime==1.29.0
+
+      - name: 下载 .pt 并导出 ONNX + manifest
+        env:
+          AUTOMOSAIC_PY: python3
+        run: bash scripts/export_models.sh 2>&1 | tee /tmp/export.log
+
+      # archive 档组件：上游直链下载 + 1536 本地导出 + manifest SHA 校验——
+      # 一并发布到本 release，平台发布 job 统一从此处拉取（不再各自导出）
+      - name: M5 组件与 1536（archive 档）
+        env:
+          AUTOMOSAIC_PY: python3
+        run: bash scripts/fetch_m5_models.sh 2>&1 | tee /tmp/m5.log
+
+      # 一键包只含本次导出产物（四档 + 中间档 + 遗留回退，~672MB）；
+      # archive 档 M5 ensemble 组件不在内（体积 ~1.3GB，见 manifest direct_url 按需下载）
+      - name: 打包一键下载档案（tar.zst + zip）
+        run: |
+          set -euxo pipefail
+          # 一键包仅四档（M5/1536 逐文件提供，全集 2.3GB 会超资产 2GiB 上限）
+          M5_RE='grounding-dino-tiny|sam2\.1-|retinaface-r34|osnet-x025|yolo26x-seg-1536'
+          find models -maxdepth 1 -name '*.onnx' -printf '%f\n' | grep -vE "$M5_RE" > /tmp/four.txt
+          (cd models && tar --zstd -cf ../models-standard.tar.zst manifest.json -T /tmp/four.txt)
+          (cd models && zip -q ../models-standard.zip manifest.json -@ < /tmp/four.txt)
+          for f in models-standard.tar.zst models-standard.zip; do
+            sha256sum "$f" | tee "$f.sha256"
+          done
+          ls -lh models-standard.*
+
+      - name: 发布到 GitHub Releases（tag=models）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          FILES=(./models/*.onnx ./models/manifest.json
+                 ./models-standard.tar.zst ./models-standard.tar.zst.sha256
+                 ./models-standard.zip ./models-standard.zip.sha256)
+          NOTES="模型分发源（应用内下载已移除，手动下载放置）。
+
+          ## 一键包（推荐）
+          - \`models-standard.zip\` / \`models-standard.tar.zst\`：四档全模型 + manifest，解压到用户数据目录的 models/ 即可：
+            - Windows: \`%APPDATA%\\Simple AutoMosaic\\models\`
+            - Linux: \`~/.local/share/Simple AutoMosaic/models\`
+            - macOS: \`~/Library/Application Support/Simple AutoMosaic/models\`
+          - 解压后校验：\`automosaic-cli models verify\`
+          - archive 档 M5 ensemble 组件（GDino/SAM2.1/RetinaFace/OSNet，~1.3GB）不在此包，下载地址见 manifest.json 各 direct_url
+
+          ## 单文件
+          逐模型 *.onnx（含 -b4 批变体），SHA256 见 manifest.json；国内镜像 ModelScope（manifest mirror_url）。
+          由 CI 从 ModelScope 拉取 .pt 自动导出。"
+          if gh release view models >/dev/null 2>&1; then
+            gh release upload models "${FILES[@]}" --clobber
+          else
+            gh release create models "${FILES[@]}" \
+              --title "模型分发源" \
+              --notes "$NOTES"
+          fi
+
+      - name: 回写 manifest.json（保持与 release 一致）
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f models/manifest.json  # models/ 在 gitignore，需 -f（已跟踪文件）
+          if git diff --cached --quiet; then
+            echo "manifest 无变化"
+          else
+            git commit -m "chore(models): CI 同步 manifest（release models 更新）[skip ci]"
+            git push
+          fi
