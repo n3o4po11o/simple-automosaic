@@ -1,0 +1,56 @@
+# ===== 归档的 Python 版（archived/） =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ===== Rust =====
+target/
+**/*.rs.bk
+
+# ===== Flutter (app/) =====
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/build/
+app/.idea/
+app/*.iml
+app/linux/flutter/ephemeral/
+app/macos/Flutter/ephemeral/
+app/windows/flutter/ephemeral/
+app/deploys/
+
+# ===== IDE / OS =====
+.vscode/
+.idea/
+.DS_Store
+.zcode/
+
+# ===== 大二进制产物（权重/视频/中间帧） =====
+*.pt
+*.pth
+*.onnx
+*.mp4
+tests/face_test.jpg
+frames/
+frames_out/
+output/
+tmp/
+models/
+
+# 内置 ffmpeg 预编译二进制（scripts/fetch_ffmpeg.sh 生成，打包时分发）
+/bin/
+
+# ===== 日志 =====
+*.log
+
+# ===== 打包产物与 e2e 输出（不入库） =====
+dist/
+tests/clip5s_mosaic*.mp4
+
+# 极限档 App 运行产物（mask 缓存目录）
+tests/clip5s_mosaic*_masks/
+
+# 图标源包（三平台图标由其派生，产物入库即可）
+mosaic_remover_icon_pack.zip

@@ -1,0 +1,41 @@
+[package]
+name = "automosaic-core"
+description = "AutoMosaic Studio 核心管线库（媒体/检测/合成，无 Flutter 依赖）"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = "0.10"
+# MJPEG 低配管道读侧（DESIGN §3.2 可选路径）：JPEG→RGB 解码
+jpeg-decoder = "0.3"
+# 预处理/后处理并行（批 letterbox 与 mask 解码）
+rayon = "1"
+# GMC 相位相关（2D FFT 互功率谱；DESIGN §5.3 运动镜头补偿）
+rustfft = "6"
+# 模型下载（阻塞式 HTTP，rustls）
+ureq = "2"
+
+# 推理后端：macOS 用 CoreML EP，Windows 用 DirectML EP（DX12 全系覆盖），
+# Linux x86_64 加 WebGPU（Dawn/Vulkan，实验）与 OpenVINO（Intel）EP，
+# 其余 CPU（EP 特性按目标平台条件启用，DESIGN §4.2）
+[target.'cfg(target_os = "macos")'.dependencies]
+ort = { workspace = true, features = ["coreml"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+ort = { workspace = true, features = ["directml"] }
+
+[target.'cfg(all(target_os = "linux", target_arch = "x86_64"))'.dependencies]
+ort = { workspace = true, features = ["webgpu"] }
+
+[features]
+# OpenVINO EP（Intel，DESIGN §4.2 可选项）：pyke 预编译 ORT 运行时无
+# "openvino+webgpu" 组合构建（2026-08-21 Linux 服务器实测），默认关闭；
+# 自链 libonnxruntime（pkg-config）或上游补齐后 `--features ort-openvino` 启用。
+ort-openvino = ["ort/openvino"]
+
+[target.'cfg(not(any(target_os = "macos", target_os = "windows", all(target_os = "linux", target_arch = "x86_64"))))'.dependencies]
+ort = { workspace = true }
+

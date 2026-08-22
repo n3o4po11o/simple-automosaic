@@ -1,0 +1,11 @@
+#!/bin/sh
+# Simple AutoMosaic AppImage 启动器（linuxdeploy --custom-apprun）
+# 关键：Flutter bundle 的 Rust dylib(librust_lib_automosaic_studio.so) 由 Dart 侧
+# 按裸名 dlopen，glibc 对裸名使用「调用方对象」的 RUNPATH 而非主程序，
+# 故必须把 bundle 的 lib 目录放进 LD_LIBRARY_PATH。
+# （模式源自 simple-automosaic 项目 AppRun-linux 的实战结论）
+HERE="$(dirname "$(readlink -f "$0")")"
+export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/usr/bin/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+# 图标主题查找带上包内 usr/share（窗口 gtk_window_set_icon_name 按主题名解析 hicolor）
+export XDG_DATA_DIRS="$HERE/usr/share${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
+exec "$HERE/usr/bin/simple-automosaic" "$@"
