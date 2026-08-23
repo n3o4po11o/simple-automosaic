@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = ["crates/automosaic-core", "crates/automosaic-cli"]
+# app/rust 是 frb 管理的 ffi crate（cargokit 独立构建），不属于本 workspace
+exclude = ["app/rust"]
+
+[workspace.package]
+# 与 app/pubspec.yaml 保持一致（scripts/version.sh bump 时自动同步）
+version = "1.0.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+
+[workspace.dependencies]
+thiserror = "2"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# ort 2.0 长期 RC，按设计文档锁定版本（DESIGN §10 风险表）
+ort = { version = "=2.0.0-rc.13" }
+
+[profile.release]
+lto = "thin"
+strip = "symbols"

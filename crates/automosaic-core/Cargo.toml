@@ -1,0 +1,44 @@
+[package]
+name = "automosaic-core"
+description = "AutoMosaic Studio 核心管线库（媒体/检测/合成，无 Flutter 依赖）"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = "0.10"
+# MJPEG 低配管道读侧（DESIGN §3.2 可选路径）：JPEG→RGB 解码
+jpeg-decoder = "0.3"
+# 预处理/后处理并行（批 letterbox 与 mask 解码）
+rayon = "1"
+# GMC 相位相关（2D FFT 互功率谱；DESIGN §5.3 运动镜头补偿）
+rustfft = "6"
+
+# 模型下载（阻塞式 HTTP，rustls）
+ureq = "2"
+
+# 推理后端：macOS CoreML / Windows 三变体 feature / Linux WebGPU+OpenVINO
+[target.'cfg(target_os = "macos")'.dependencies]
+ort = { workspace = true, features = ["coreml"] }
+
+# Windows 推理后端三变体：默认 OpenVINO（load-dynamic + 官方 DLL）；
+# build_windows.ps1 按 -Variant 改写此行 + default feature 标记后 cargokit 拾取
+[target.'cfg(target_os = "windows")'.dependencies]
+ort = { workspace = true, features = ["openvino", "load-dynamic"] }
+
+[target.'cfg(all(target_os = "linux", target_arch = "x86_64"))'.dependencies]
+ort = { workspace = true, features = ["webgpu"] }
+
+[features]
+default = []
+# Windows 变体标记（纯 cfg 分支控制；ort feature 由 target dep 或脚本改写管理）
+win-cuda = []
+win-directml = []
+# Linux OpenVINO（pyke 预编译无 openvino+webgpu 组合，自链时启用）
+ort-openvino = ["ort/openvino"]
+
+[target.'cfg(not(any(target_os = "macos", target_os = "windows", all(target_os = "linux", target_arch = "x86_64"))))'.dependencies]
+ort = { workspace = true }
+

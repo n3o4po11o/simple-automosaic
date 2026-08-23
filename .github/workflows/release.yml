@@ -1,0 +1,520 @@
+# 发布构建：macOS zip / Linux AppImage / Windows zip+portable（全模型单形态，
+# 2026-08-22 起 download 版移除）→ GitHub Release
+#
+# 触发方式：
+#   1. 推 v* 标签：构建并发布 Release（标签即版本号）
+#   2. workflow_dispatch：默认只构建（产物在 run 的 Artifacts，验证用）；
+#      勾选 publish 并填 tag 则同时发布 Release
+#
+# 模式参考前序项目 release.yml 的实战纪律：
+#   - prepare-release 前置作业（删残留 + --verify-tag + 重试），
+#     构建作业把产物直挂 Release，不经 artifact 服务中转
+#   - Flutter SDK 走官方 tarball 直连（绕开共享 runner 出口 IP 被
+#     GitHub 二级限流时 codeload 连不上的问题）
+#   - 关闭 Swift Package Manager 分流（保持 Podfile 布局与本地一致）
+#   - 每个 dmg 附 .sha256 边车；失败时日志尾部上报 annotation + 工件
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: '构建后发布到 GitHub Release'
+        type: boolean
+        default: false
+      tag:
+        description: 'Release 标签（勾选 publish 时必填，如 v0.1.0）'
+        type: string
+        default: ''
+
+env:
+  FLUTTER_VERSION: 3.44.8
+
+permissions:
+  contents: read
+
+# 同 tag 并发 run 会竞争同一 Release（prepare 互删重建 + 产物互撞 422，
+# 2026-08-23 v0.0.1 两分钟内两次 push 实测）——同 ref 只留最新 run，
+# 先来的被取消
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 先建好空 Release（删残留 + --verify-tag 绑定现有 tag），构建作业直挂产物
+  prepare-release:
+    name: 准备 Release
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: 创建 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+          RELEASE_NOTES: |
+            ## 使用
+
+            桌面安装包均内置四档全模型（speed / balanced / accurate / extreme，离线可用）。
+            archive 档 M5 组件不随包：从 models release 取 `models-m5` 一键包，
+            解压到各平台模型目录（见下/README「手动下载模型」）。
+
+            - **Windows**
+              - `windows-x64-portable.exe`：双击即用——**首次运行**自动释放应用到
+                `%LOCALAPPDATA%\SimpleAutoMosaic\app`（内置四档模型 ~672MB，等待
+                10-30 秒后自动启动；**之后双击秒级启动**，不重复解压）。
+                模型释放位置：`%LOCALAPPDATA%\SimpleAutoMosaic\app\models`
+              - **推理档位选择**（设备选择器三选：自动 / OpenVINO / CPU）：
+                - **自动**：OpenVINO GPU → 不可用自动回退 CPU（推荐大多数用户）
+                - **CPU**：纯 ONNX Runtime CPU（老 iGPU 上可能比 GPU 快）
+                - **OpenVINO**：显式指定 Intel GPU 推理
+              - **档位与硬件建议**：
+                - `speed` / `balanced`：所有 CPU 可用（8核+ 推荐 balanced）
+                - `accurate`：8核+ CPU 或较新 Intel iGPU（Gen11+/Xe/Arc）
+                - `extreme`：**建议 CPU 模式**（老 iGPU 上 GPU 模式内存开销大）
+                - `archive`：需独显或 Apple Silicon；老 iGPU 不建议
+              - Intel GPU 推理需安装较新的 [Intel Graphics Driver](https://www.intel.com/content/www/us/en/download-center/home.html)
+                （31.x+；老 UHD 6xx 系列 GPU 算力有限，`balanced` 档 CPU 可能更快）
+              - `m5-models.exe`（可选）：archive 档 M5 ensemble 组件（~1.6GB），
+                双击释放到 `%LOCALAPPDATA%\SimpleAutoMosaic\app\models`（需先运行过 portable）
+              - `windows-x64.zip`（Standard / `-cuda` / `-directml` 三变体）：
+                Standard=Intel iGPU+CPU / CUDA=NVIDIA / DirectML=AMD·NVIDIA，
+                按显卡选对应变体下载；不含模型的轻量包按 README 手动放置
+              - archive 档（M5 组件，可选）：从 [models release](../tag/models) 下载
+                `models-m5.zip`，解压到 `%LOCALAPPDATA%\SimpleAutoMosaic\app\models`
+               （portable 用户）或 `%APPDATA%\Simple AutoMosaic\models`（zip 用户）
+              - 未签名，SmartScreen 提示时点「更多信息 → 仍要运行」
+            - **Linux**：`AppImage` 下载后 `chmod +x`（HTTP 下载不带可执行位）
+            - **macOS**：解压 zip 拖入「应用程序」；未签名/公证，首次打开需
+              **右键 .app → 打开**
+
+            ## 校验
+
+            各产物旁附 `.sha256` 边车（内容 `<哈希>  <文件名>`）：
+
+            ```
+            shasum -c simple-automosaic-*.sha256      # macOS / Linux
+            certutil -hashfile <文件名> SHA256        # Windows
+            ```
+        run: |
+          set -euxo pipefail
+          for i in 1 2 3 4 5; do
+            if gh release delete "$TAG" --yes --repo "${{ github.repository }}" >/dev/null 2>&1; then break; fi
+            [ "$i" = 5 ] || { sleep 15; continue; }
+          done
+          for i in 1 2 3 4 5; do
+            if gh release create "$TAG" --verify-tag --title "$TAG" \
+                --notes "$RELEASE_NOTES" \
+                --generate-notes --repo "${{ github.repository }}"; then
+              break
+            fi
+            [ "$i" = 5 ] && exit 1
+            echo "release 创建失败（第 $i 轮），15s 后重试"
+            sleep 15
+          done
+          gh release view "$TAG" --repo "${{ github.repository }}" \
+            --json url,isDraft -q '"draft=\(.isDraft) \(.url)"'
+
+  build-macos:
+    name: macOS zip（arm64·全模型）
+    needs: prepare-release
+    if: always() && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped')
+    runs-on: macos-14
+    timeout-minutes: 120
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      # Flutter 官方 zip 直连（storage.googleapis.com）：subosito action 经 codeload
+      # 下载，共享 runner 出口 IP 被 GitHub 二级限流（429）时连 action 都拉不下来
+      - name: 预置 Flutter SDK
+        run: |
+          set -euxo pipefail
+          cd "$GITHUB_WORKSPACE"
+          curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
+            -o /tmp/flutter.zip \
+            "https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_${FLUTTER_VERSION}-stable.zip"
+          unzip -q /tmp/flutter.zip -d "$RUNNER_TEMP"
+          mv "$RUNNER_TEMP/flutter" .flutter-sdk
+          echo "$GITHUB_WORKSPACE/.flutter-sdk/bin" >> "$GITHUB_PATH"
+          export PATH="$GITHUB_WORKSPACE/.flutter-sdk/bin:$PATH"
+          flutter --version
+      # 插件的 Package.swift 会被 SPM 分流移出 pods，Podfile 布局随之改变——
+      # 与本地一致关闭（前序项目工具链排障结论）
+      - name: 关闭 Swift Package Manager 分流
+        run: flutter config --no-enable-swift-package-manager
+      # macos-14 镜像默认 15.4，装 16.2（该镜像最新）——锁定版本防漂移。
+      # dedupe_archive 已按 Mach-O magic 过滤非对象成员（SYMDEF 泄漏修复），
+      # 16.2 的 libtool 不再收到非法输入
+      - name: 选择 Xcode 16.2
+        run: |
+          if [ -d "/Applications/Xcode_16.2.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.2.app
+          fi
+          xcodebuild -version
+      - name: Rust 工具链（pin 1.97.1 与开发一致；无条件覆盖——镜像预装
+          rustup 时 command -v 守卫会跳过 pin）
+        run: |
+          [ -x "$HOME/.cargo/bin/rustup" ] || \
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.97.1
+          "$HOME/.cargo/bin/rustup" default 1.97.1
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/rustc" -V
+
+      - name: 拉取内置 ffmpeg
+        run: bash scripts/fetch_ffmpeg.sh 2>&1 | tee /tmp/ffmpeg.log
+
+      # 模型：从 models release 拉取已导出 ONNX（publish-models 工作流产物，
+      # manifest SHA256 逐文件校验）——平台 job 不再各自跑 Python 导出管线
+      - name: 拉取模型（四档全量）
+        run: bash scripts/fetch_models_release.sh 2>&1 | tee /tmp/models.log
+
+      - name: 打包 zip（含 sha256 边车）
+        run: bash scripts/package_macos.sh 2>&1 | tee /tmp/package.log
+
+      # 失败诊断：日志尾部一条 annotation（单步上限），完整日志另存工件
+      - name: 失败诊断上报
+        if: failure()
+        run: |
+          for log in /tmp/ffmpeg.log /tmp/models.log /tmp/package.log; do
+            [ -f "$log" ] || continue
+            echo "===== $log 尾部 ====="
+            tail -30 "$log"
+            echo "::error::${log} 尾部: $(tail -8 "$log" | tr '\n' '|' | cut -c1-700)"
+          done
+      - name: 失败日志工件
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: macos-build-logs
+          path: /tmp/*.log
+          if-no-files-found: ignore
+
+      # artifact 服务持续 503 抖动（实战记录）——产物以直挂 Release 为准，
+      # artifact 上传失败不置死 job
+      - uses: actions/upload-artifact@v6
+        continue-on-error: true
+        with:
+          name: automosaic-macos-zip
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+
+      # 产物直挂 Release（macOS runner 自带 gh CLI；重试节奏取 CI 实战值）
+      - name: 挂到 Release
+        if: >-
+          startsWith(github.ref, 'refs/tags/v') ||
+          (github.event_name == 'workflow_dispatch' && inputs.publish)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euxo pipefail
+          for i in 1 2 3 4 5; do
+            if gh release upload "$TAG" dist/*.zip dist/*.sha256 \
+                --clobber --repo "${{ github.repository }}"; then
+              break
+            fi
+            [ "$i" = 5 ] && exit 1
+            sleep 15
+          done
+          echo "::notice::macOS 产物已挂载 $(date -u +%H:%M:%SZ)"
+
+  build-linux:
+    name: Linux AppImage（x86_64·全模型）
+    needs: prepare-release
+    if: always() && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped')
+    runs-on: ubuntu-latest
+    # glibc 基线尽可能老：ubuntu:20.04 = glibc 2.31（Ubuntu 18.04 已 EOL 且
+    # Flutter 3.44 工具链不支持）。若构建失败（依赖 Flutter 新版工具链特性），
+    # 回退 ubuntu:22.04（glibc 2.35）——首次 CI 迭代确认
+    container: ubuntu:20.04
+    timeout-minutes: 120
+    permissions:
+      contents: write
+    # 容器作业默认 shell 是 sh(dash)：pipefail 等 bash 语法第 1 行就
+    # "Illegal option"——统一显式 bash
+    defaults:
+      run:
+        shell: bash
+    env:
+      FLUTTER_STORAGE_BASE_URL: https://storage.googleapis.com
+      PUB_HOSTED_URL: https://pub.dev
+    steps:
+      - name: 安装构建依赖
+        run: |
+          # 非交互前端：tzdata 等包会弹交互配置提示，容器里无 stdin 就死等
+          # 到 2h 作业超时（首跑实测）；apt 带超时与重试防镜像抖动
+          export DEBIAN_FRONTEND=noninteractive
+          APT_OPTS=(-o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=5)
+          apt-get update -qq "${APT_OPTS[@]}"
+          apt-get install -y -qq "${APT_OPTS[@]}" --no-install-recommends \
+            ca-certificates curl git jq xz-utils unzip file sudo \
+            build-essential clang cmake ninja-build pkg-config \
+            libgtk-3-dev libmpv-dev libssl-dev \
+            desktop-file-utils
+      - uses: actions/checkout@v5
+
+      - name: Rust 工具链（cargokit 要求 rustup；pin 1.97.1 与开发/CI 一致）
+        run: |
+          command -v rustup >/dev/null 2>&1 || \
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.97.1
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      # 预置 Flutter SDK（官方 tarball 直连，绕开共享出口 IP 的 codeload
+      # 限流；放在构建脚本预期的 .flutter-sdk 位置，检测到即跳过自克隆）。
+      # 注意：容器 curl 为 7.68，不支持 --retry-all-errors（需 ≥7.71）——
+      # 与 macos/windows job 的 curl 参数差异是刻意的
+      - name: 预置 Flutter SDK
+        run: |
+          set -euxo pipefail
+          cd "$GITHUB_WORKSPACE"
+          curl -fsSL --retry 5 --retry-delay 10 \
+            -o /tmp/flutter.tar.xz \
+            "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
+          tar -xJf /tmp/flutter.tar.xz
+          rm -f /tmp/flutter.tar.xz
+          mv flutter .flutter-sdk
+          # 容器以 root 运行、工作区属主是宿主 uid——git 需要 safe.directory
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/.flutter-sdk"
+          export PATH="$GITHUB_WORKSPACE/.flutter-sdk/bin:$PATH"
+          flutter --version
+
+      # 模型：从 models release 拉取已导出 ONNX（publish-models 工作流产物，
+      # manifest SHA256 逐文件校验）——平台 job 不再各自跑 Python 导出管线
+      - name: 拉取模型（四档全量）
+        run: bash scripts/fetch_models_release.sh 2>&1 | tee /tmp/models.log
+
+      # media_kit_libs_linux 构建期自下载 mimalloc（限流时拿到坏档 → MD5
+      # 校验 FATAL_ERROR）。预种正确文件，插件检测到即跳过下载
+      # （MD5/URL 来自插件 CMakeLists，mimalloc v2.1.2）
+      - name: 预置 mimalloc（插件构建期依赖）
+        run: |
+          set -euxo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/app/build/linux/x64/release"
+          dest="$GITHUB_WORKSPACE/app/build/linux/x64/release/mimalloc-2.1.2.tar.gz"
+          for i in 1 2 3 4 5; do
+            if curl -fsSL --retry 3 --retry-delay 10 \
+              -o "$dest" "https://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.2.tar.gz"; then
+              break
+            fi
+            [ "$i" = 5 ] && exit 1
+            echo "mimalloc 下载失败（第 $i 轮），15s 后重试"
+            sleep 15
+          done
+          echo "5179c8f5cf1237d2300e2d8559a7bc55  $dest" | md5sum -c -
+
+      - name: 构建 AppImage
+        run: |
+          set -o pipefail
+          bash scripts/build-linux-appimage.sh 2>&1 | tee /tmp/appimage.log
+          ls -la dist/
+
+      # chmod +x（HTTP 下载落盘不带可执行位）；--appimage-extract 冒烟验证
+      # runtime+squashfs 完整性，不再盲发
+      - name: 产物校验（chmod + 完整性冒烟）
+        run: |
+          set -euxo pipefail
+          chmod +x dist/simple-automosaic-linux-x86_64.AppImage
+          (cd dist && ./simple-automosaic-linux-x86_64.AppImage --appimage-extract >/dev/null 2>&1)
+          test -x dist/squashfs-root/usr/bin/simple-automosaic
+          rm -rf dist/squashfs-root
+          test -f dist/simple-automosaic-linux-x86_64.AppImage.sha256
+
+      - name: 失败诊断上报
+        if: failure()
+        run: |
+          for log in /tmp/models.log /tmp/appimage.log; do
+            [ -f "$log" ] || continue
+            echo "===== $log 尾部 ====="
+            tail -30 "$log"
+            echo "::error::${log} 尾部: $(tail -8 "$log" | tr '\n' '|' | cut -c1-700)"
+          done
+      - name: 失败日志工件
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-build-logs
+          path: /tmp/*.log
+          if-no-files-found: ignore
+
+      # artifact 服务持续 503 抖动（实战记录）——产物以直挂 Release 为准，
+      # artifact 上传失败不置死 job
+      - uses: actions/upload-artifact@v6
+        continue-on-error: true
+        with:
+          name: simple-automosaic-linux-x86_64
+          path: |
+            dist/simple-automosaic-linux-x86_64.AppImage
+            dist/simple-automosaic-linux-x86_64.AppImage.sha256
+          if-no-files-found: error
+
+      # 产物直挂 Release（不经 artifact 服务）。ubuntu 容器无 gh CLI——
+      # 纯 curl 走 REST 上传端点，删旧+传新模拟 --clobber
+      - name: 挂到 Release
+        if: >-
+          startsWith(github.ref, 'refs/tags/v') ||
+          (github.event_name == 'workflow_dispatch' && inputs.publish)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euxo pipefail
+          rel_id=""
+          for i in 1 2 3 4 5; do
+            rel_id=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" \
+              | grep -o '"id": *[0-9]\+' | head -1 | tr -dc '0-9')
+            [ -n "$rel_id" ] && break
+            [ "$i" = 5 ] && { echo "::error::查询 release id 失败（TAG=$TAG）"; exit 1; }
+            echo "查询 release 失败（第 $i 轮），15s 后重试"
+            sleep 15
+          done
+          for f in simple-automosaic-linux-x86_64.AppImage simple-automosaic-linux-x86_64.AppImage.sha256; do
+            for i in 1 2 3 4 5; do
+              # 先删同名旧资产再传（等价 gh release upload --clobber）：重跑/
+              # 并发下 422 already_exists 是确定性失败，盲重试无效。整段容错，
+              # 删除失败由 POST 失败后的下一轮重试兜底
+              curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+                "https://api.github.com/repos/${{ github.repository }}/releases/$rel_id/assets?per_page=100" \
+                | jq -r ".[] | select(.name == \"$f\") | .id" \
+                | while read -r aid; do
+                    curl -fsSL -X DELETE -H "Authorization: Bearer $GH_TOKEN" \
+                      "https://api.github.com/repos/${{ github.repository }}/releases/assets/$aid" || true
+                  done || true
+              if curl -fsSL -X POST \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Content-Type: application/octet-stream" \
+                --data-binary "@dist/$f" \
+                "https://uploads.github.com/repos/${{ github.repository }}/releases/$rel_id/assets?name=$f"; then
+                break
+              fi
+              [ "$i" = 5 ] && { echo "::error::产物上传失败（rel_id=$rel_id, $f）"; exit 1; }
+              echo "产物上传失败（第 $i 轮），15s 后重试"
+              sleep 15
+            done
+          done
+          echo "::notice::linux 产物已挂载（release $rel_id）"
+
+  build-windows:
+    name: Windows ${{ matrix.variant }}（x64·四档模型）
+    needs: prepare-release
+    if: always() && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped')
+    runs-on: windows-latest
+    timeout-minutes: 180
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: standard
+            suffix: ""
+            desc: "OpenVINO（Intel iGPU + CPU）"
+          - variant: cuda
+            suffix: "-cuda"
+            desc: "CUDA（NVIDIA）"
+          - variant: directml
+            suffix: "-directml"
+            desc: "DirectML（AMD/NVIDIA）"
+    steps:
+      - uses: actions/checkout@v5
+
+      # Flutter 官方 zip 直连（与 macOS/Linux job 同法，绕 codeload 限流）
+      - name: 预置 Flutter SDK
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $zip = "$env:RUNNER_TEMP\flutter.zip"
+          curl.exe -fsSL --retry 5 --retry-delay 10 --retry-all-errors -o $zip `
+            "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_${env:FLUTTER_VERSION}-stable.zip"
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          Move-Item "$env:RUNNER_TEMP\flutter" "$env:GITHUB_WORKSPACE\.flutter-sdk"
+          Add-Content $env:GITHUB_PATH "$env:GITHUB_WORKSPACE\.flutter-sdk\bin"
+          & "$env:GITHUB_WORKSPACE\.flutter-sdk\bin\flutter.bat" --version
+
+      - name: Rust 工具链（cargokit 要求 rustup）
+        shell: pwsh
+        run: |
+          # pwsh 里 curl 是 Invoke-WebRequest 的别名——必须显式 curl.exe；
+          # win.rustup.rs 是重定向服务，-L 必带。rustup 文档的 --proto/=https
+          # 组合在 pwsh 传参下会被解析歪（Bad hostname），runner 上无必要
+          curl.exe -fsSL -o rustup-init.exe https://win.rustup.rs
+          ./rustup-init.exe -y --profile minimal --default-toolchain 1.97.1
+          echo "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      # choco 不做 PATH 垫片——固定安装路径显式加入（build_windows.ps1 亦有兜底）
+      - name: NSIS（单文件自释放打包器）
+        shell: pwsh
+        run: |
+          choco install nsis -y
+          echo "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      # 模型：--all 拉五档（portable 的 M5 排除在 ps1 内过滤，M5 补充包
+      # 打包需要组件在 models/——标准变体两个产物共用同一次拉取）
+      - name: 拉取模型（五档全量，portable 排除 M5 / M5 补充包取 M5）
+        shell: bash
+        run: bash scripts/fetch_models_release.sh --all
+
+      # pwsh 直调（脚本 UTF-8 无 BOM，Windows PowerShell 5.1 会按 GBK 误读中文注释）
+      - name: 构建（variant=${{ matrix.variant }}）
+        shell: pwsh
+        run: pwsh -File scripts/build_windows.ps1 -Variant ${{ matrix.variant }} 2>&1 | Tee-Object -FilePath "$env:TEMP\win-build.log"
+
+      # 失败摘要打成 annotation（免认证可读，与 macOS/Linux job 同法）
+      - name: 失败诊断上报
+        if: failure()
+        shell: pwsh
+        run: |
+          $log = "$env:TEMP\win-build.log"
+          if (Test-Path $log) {
+            $tail = (Get-Content $log -Tail 40) -join '|'
+            echo "::error::win 构建日志尾部: $($tail.Substring(0, [Math]::Min(2000, $tail.Length)))"
+          } else {
+            echo "::error::windows 构建失败且无日志（失败步骤名即定位线索）"
+          }
+
+      # artifact 服务持续 503 抖动（实战记录）——产物以直挂 Release 为准，
+      # artifact 上传失败不置死 job
+      - uses: actions/upload-artifact@v6
+        continue-on-error: true
+        with:
+          name: automosaic-windows-${{ matrix.variant }}
+          path: |
+            dist/simple-automosaic-windows-x64*.zip
+            dist/simple-automosaic-windows-x64*portable.exe
+            dist/simple-automosaic-m5-models.exe
+            dist/*.sha256
+          if-no-files-found: error
+
+      # windows runner 自带 gh CLI 与 Git Bash（bash 步骤用 glob 展开最省事）
+      - name: 挂到 Release
+        if: >-
+          startsWith(github.ref, 'refs/tags/v') ||
+          (github.event_name == 'workflow_dispatch' && inputs.publish)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euxo pipefail
+          # 按实际产物动态构建上传列表（M5 仅 standard 变体构建，cuda/directml 无此文件）
+          files=(dist/simple-automosaic-windows-x64*.zip dist/simple-automosaic-windows-x64*portable.exe dist/*.sha256)
+          if [ -f dist/simple-automosaic-m5-models.exe ]; then
+            files+=(dist/simple-automosaic-m5-models.exe)
+          fi
+          for i in 1 2 3 4 5; do
+            if gh release upload "$TAG" "${files[@]}" --clobber --repo "${{ github.repository }}"; then
+              break
+            fi
+            [ "$i" = 5 ] && exit 1
+            sleep 15
+          done
+          echo "::notice::windows ${{ matrix.variant }} 产物已挂载 $(date -u +%H:%M:%SZ)"
